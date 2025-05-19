@@ -1,0 +1,31 @@
+[build]
+  # This directory is intentionally left empty as we're not deploying a frontend
+  publish = "public"
+  command = "echo 'No build required'"
+
+[functions]
+  # Specify where our serverless functions are located
+  directory = "netlify/functions"
+
+[dev]
+  # Directory with static files to serve in dev mode (can be empty or minimal)
+  publish = "public"
+  # Functions port in dev mode
+  functionsPort = 8888
+
+# Environment variables will be configured in the Netlify UI
+# DO NOT add sensitive values here, this is just for documentation
+
+# Add CORS headers to allow webhook requests
+[[headers]]
+  for = "/.netlify/functions/*"
+  [headers.values]
+    Access-Control-Allow-Origin = "*"
+    Access-Control-Allow-Headers = "Content-Type, X-Shopify-Hmac-SHA256"
+    Access-Control-Allow-Methods = "POST, OPTIONS"
+
+# Optional: redirect root to functions overview
+[[redirects]]
+  from = "/"
+  to = "/.netlify/functions"
+  status = 302

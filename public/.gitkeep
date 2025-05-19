@@ -1,0 +1,3 @@
+# This file exists to ensure the public directory is included in git
+# It can be safely ignored as it doesn't contain any functional code
+# The public directory is required for Netlify deployment even when empty

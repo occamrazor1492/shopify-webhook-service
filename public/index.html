@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shopify Webhook Service</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        header {
+            text-align: center;
+            margin-bottom: 40px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #eee;
+        }
+        h1 {
+            color: #008060;
+        }
+        .status {
+            background-color: #f9f9f9;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+        .webhook-url {
+            background-color: #f3f3f3;
+            padding: 10px;
+            border-radius: 5px;
+            font-family: monospace;
+            overflow-wrap: break-word;
+        }
+        footer {
+            margin-top: 40px;
+            text-align: center;
+            font-size: 0.8em;
+            color: #777;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Shopify Webhook Service</h1>
+        <p>Independent service for processing Shopify webhooks and adding customer tags</p>
+    </header>
+
+    <main>
+        <section>
+            <h2>Service Status</h2>
+            <div class="status">
+                <p>✅ Service is running</p>
+                <p>This service processes Shopify webhooks and adds appropriate tags to customers.</p>
+            </div>
+        </section>
+
+        <section>
+            <h2>Webhook URL</h2>
+            <p>Configure your Shopify webhooks to use the following URL:</p>
+            <div class="webhook-url">
+                <code id="webhook-url">https://[your-netlify-site].netlify.app/.netlify/functions/customer-tag-webhook</code>
+            </div>
+            <script>
+                // Update the webhook URL to show the actual URL
+                document.getElementById('webhook-url').textContent = 
+                    window.location.origin + '/.netlify/functions/customer-tag-webhook';
+            </script>
+        </section>
+
+        <section>
+            <h2>Documentation</h2>
+            <p>For setup and configuration details:</p>
+            <ul>
+                <li>See the README.md file in the project repository</li>
+                <li>Ensure your environment variables are properly configured in Netlify</li>
+                <li>Create the webhook in your Shopify admin panel</li>
+            </ul>
+        </section>
+    </main>
+
+    <footer>
+        <p>Shopify Webhook Service &copy; <span id="current-year"></span></p>
+        <script>document.getElementById('current-year').textContent = new Date().getFullYear();</script>
+    </footer>
+</body>
+</html>

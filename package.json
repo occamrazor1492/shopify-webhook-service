@@ -1,0 +1,26 @@
+{
+  "name": "shopify-webhook-service",
+  "version": "1.0.0",
+  "description": "Independent service for processing Shopify webhooks and adding customer tags",
+  "main": "netlify/functions/customer-tag-webhook.js",
+  "scripts": {
+    "test": "node test-webhook.js",
+    "dev": "netlify dev",
+    "deploy": "netlify deploy --prod",
+    "start:local": "netlify dev --functions=netlify/functions",
+    "test:store1": "node test-webhook.js store1",
+    "test:store2": "node test-webhook.js store2"
+  },
+  "dependencies": {
+    "axios": "^1.6.0",
+    "crypto": "^1.0.1",
+    "dotenv": "^16.3.1"
+  },
+  "devDependencies": {
+    "netlify-cli": "^17.0.0"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "private": true
+}
