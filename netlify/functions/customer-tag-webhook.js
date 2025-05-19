@@ -26,6 +26,11 @@ console.log(`SHOPIFY_WEBHOOK_SECRET: ${SHOPIFY_WEBHOOK_SECRET ? 'Set (value hidd
 console.log(`SHOPIFY_API_VERSION: ${SHOPIFY_API_VERSION}`);
 console.log(`DEFAULT_CUSTOMER_TAGS: ${DEFAULT_CUSTOMER_TAGS}`);
 console.log(`ENV VAR CHECK - SHOPIFY_API_SECRET_KEY exists: ${!!process.env.SHOPIFY_API_SECRET_KEY}`);
+  
+// Validate admin token format - should be at least 10 chars
+if (SHOPIFY_ADMIN_API_ACCESS_TOKEN && SHOPIFY_ADMIN_API_ACCESS_TOKEN.length < 10) {
+  console.warn('WARNING: SHOPIFY_ADMIN_API_ACCESS_TOKEN appears to be too short - check format');
+}
 
 /**
  * Main webhook handler function
@@ -83,18 +88,30 @@ exports.handler = async (event, context) => {
       customerId = customerData.admin_graphql_api_id;
       console.log('DEBUG - Using admin_graphql_api_id instead:', customerId);
     }
+    
+    // Check if customer object is nested within the data
+    if (!customerId && customerData.customer && customerData.customer.id) {
+      customerId = customerData.customer.id;
+      console.log('DEBUG - Found ID in nested customer object:', customerId);
+    }
+    
+    // Check for nested admin_graphql_api_id
+    if (!customerId && customerData.customer && customerData.customer.admin_graphql_api_id) {
+      customerId = customerData.customer.admin_graphql_api_id;
+      console.log('DEBUG - Found admin_graphql_api_id in nested customer object:', customerId);
+    }
   
-    // Handle legacy format where ID might be directly in customer object
-    if (!customerId && typeof customerData === 'object') {
-      // Look for common ID properties
-      for (const prop of ['id', 'ID', 'customer_id', 'customerId']) {
-        if (customerData[prop]) {
-          customerId = customerData[prop];
-          console.log(`DEBUG - Found customer ID in property ${prop}:`, customerId);
-          break;
+      // Handle legacy format where ID might be directly in customer object
+      if (!customerId && typeof customerData === 'object') {
+        // Look for common ID properties
+        for (const prop of ['id', 'ID', 'customer_id', 'customerId']) {
+          if (customerData[prop]) {
+            customerId = customerData[prop];
+            console.log(`DEBUG - Found customer ID in property ${prop}:`, customerId);
+            break;
+          }
         }
       }
-    }
   
     if (!customerId) {
       console.error('DEBUG - Full customer data:', JSON.stringify(customerData));
@@ -241,12 +258,30 @@ async function applyTagsToCustomer(customerId, tags) {
     throw new Error('Missing Shopify API configuration');
   }
   
+  // Validate required token format
+  if (SHOPIFY_ADMIN_API_ACCESS_TOKEN.startsWith('shpat_') === false && 
+      SHOPIFY_ADMIN_API_ACCESS_TOKEN.startsWith('shppa_') === false) {
+    console.warn('WARNING: SHOPIFY_ADMIN_API_ACCESS_TOKEN may have incorrect format - Shopify Admin API tokens typically start with shpat_ or shppa_');
+  }
+  
   console.log('DEBUG - Customer ID:', customerId, 'Type:', typeof customerId);
 
     // Ensure customerId is a string
-    const customerIdStr = typeof customerId === 'object' && customerId !== null
-      ? JSON.stringify(customerId)  // Handle if it's an object
-      : String(customerId);         // Convert numbers or other primitives to string
+    let customerIdStr;
+    if (typeof customerId === 'object' && customerId !== null) {
+      // If it's an object with an id property, use that
+      if (customerId.id) {
+        customerIdStr = String(customerId.id);
+        console.log('DEBUG - Extracted ID from object property:', customerIdStr);
+      } else {
+        // Otherwise stringify the whole object
+        customerIdStr = JSON.stringify(customerId);
+        console.log('DEBUG - Stringified object ID:', customerIdStr);
+      }
+    } else {
+      // Convert numbers or other primitives to string
+      customerIdStr = String(customerId);
+    }
   
   // Extract numeric ID from GID if needed
   // Example: gid://shopify/Customer/1234567890 -> 1234567890
@@ -259,9 +294,16 @@ async function applyTagsToCustomer(customerId, tags) {
     // Handle numeric ID directly
     numericId = customerIdStr;
   } else {
-    // If it's neither GID nor numeric, log warning and use as is
-    console.warn(`WARNING: Unexpected customer ID format: ${customerIdStr}`);
-    numericId = customerIdStr;
+    // Try to extract numeric portion from ID if present
+    const matches = customerIdStr.match(/(\d+)/);
+    if (matches && matches[1]) {
+      numericId = matches[1];
+      console.log(`DEBUG - Extracted numeric portion from ID: ${numericId}`);
+    } else {
+      // If no numeric portion found, log warning and use as is
+      console.warn(`WARNING: Unexpected customer ID format: ${customerIdStr}`);
+      numericId = customerIdStr;
+    }
   }
 
   // Make sure we're dealing with a clean numeric ID for the API
@@ -273,7 +315,19 @@ async function applyTagsToCustomer(customerId, tags) {
   console.log(`  As string: ${customerIdStr}`);
   console.log(`  Numeric ID: ${numericId}`);
   console.log(`  Clean Numeric ID for API: ${cleanNumericId}`);
-  const url = `https://${SHOPIFY_STORE_DOMAIN}/admin/api/${SHOPIFY_API_VERSION}/customers/${cleanNumericId}.json`;
+  
+  // Shopify admin API requires valid numeric ID - validation
+  if (!cleanNumericId || !/^\d+$/.test(cleanNumericId)) {
+    console.error('DEBUG - Customer ID processing failed:');
+    console.error(`  Original ID: ${customerId}`);
+    console.error(`  After processing: ${cleanNumericId}`);
+    console.error(`  Full customer data: ${JSON.stringify(customerData, null, 2)}`);
+    throw new Error(`Invalid customer ID format after processing: ${cleanNumericId}. Customer ID must be a numeric value.`);
+  }
+  
+  // Format domain correctly - remove protocol if included
+  const formattedDomain = SHOPIFY_STORE_DOMAIN.replace(/^https?:\/\//i, '');
+  const url = `https://${formattedDomain}/admin/api/${SHOPIFY_API_VERSION}/customers/${cleanNumericId}.json`;
   console.log(`DEBUG - API URL: ${url}`);
   
   const tagsString = tags.join(', ');
@@ -281,6 +335,14 @@ async function applyTagsToCustomer(customerId, tags) {
   
   try {
     console.log(`DEBUG - Making API request to update customer ${numericId}`);
+    console.log(`DEBUG - Request payload:`, JSON.stringify({
+      customer: {
+        id: cleanNumericId,
+        tags: tagsString
+      }
+    }));
+    console.log(`DEBUG - Using API token: ${SHOPIFY_ADMIN_API_ACCESS_TOKEN.slice(0, 4)}...${SHOPIFY_ADMIN_API_ACCESS_TOKEN.slice(-4)}`);
+    
     const response = await axios({
       method: 'PUT',
       url: url,
@@ -304,6 +366,15 @@ async function applyTagsToCustomer(customerId, tags) {
     if (error.response) {
       console.error('DEBUG - Error status:', error.response.status);
       console.error('DEBUG - Error response data:', JSON.stringify(error.response.data));
+      console.error('DEBUG - Request URL:', url);
+      
+      if (error.response.status === 404) {
+        throw new Error(`Customer ID ${cleanNumericId} not found in Shopify. Verify the customer exists and the ID format is correct.`);
+      } else if (error.response.status === 401 || error.response.status === 403) {
+        throw new Error(`Authentication error: ${error.response.status}. Verify your SHOPIFY_ADMIN_API_ACCESS_TOKEN has sufficient permissions and is correctly formatted (should start with shpat_ or shppa_).`);
+      } else if (error.response.status === 422) {
+        throw new Error(`Validation error: ${JSON.stringify(error.response.data)}. Check if the request data format is correct.`);
+      }
     }
     throw new Error(`Failed to apply tags: ${error.message}`);
   }
